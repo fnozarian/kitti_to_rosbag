@@ -5,7 +5,6 @@ find_package(catkin_simple REQUIRED)
 catkin_simple(ALL_DEPS_REQUIRED)
 
 find_package(OpenCV REQUIRED COMPONENTS core highgui imgcodecs calib3d)
-find_package(fmt)
 
 set(CMAKE_MACOSX_RPATH 0)
 add_definitions(-std=c++17)

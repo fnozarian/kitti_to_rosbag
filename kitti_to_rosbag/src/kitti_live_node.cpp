@@ -60,10 +60,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <ctime>
 #include <sstream>
 #include <chrono>
-#include <fmt/format.h>
 #include <boost/format.hpp>
 #include <boost/filesystem.hpp>
-#include <fmt/time.h>
 #include <experimental/filesystem>
 #include <signal.h>
 #include <unistd.h>
@@ -619,10 +617,6 @@ string KittiLiveNode::formatTimestamp(uint32_t timestamp_s, uint32_t timestamp_n
   char buffer[80];
   strftime(buffer,sizeof(buffer),"%d-%m-%Y %H:%M:%S", localtime(&ts_time_t));
   std::string timstamp_fmt(buffer);
-
-  // boost::format timstamp_fmt = boost::format("{:%Y-%m-%d %H:%M:%S}.{:09d}") % std::localtime(&ts_time_t) % timestamp_ns;
-  
-  // string ts_string = fmt::format("{:%Y-%m-%d %H:%M:%S}.{:09d}", fmt::localtime(ts_time_t), timestamp_ns);
   return timstamp_fmt;
 }
 
