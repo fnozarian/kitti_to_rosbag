@@ -93,13 +93,14 @@ class KittiParser {
   Transformation T_vel_imu() const;
 
   size_t getNumCameras() const;
+  
+  bool convertGpsToPose(const std::vector<double>& oxts, Transformation* pose);
 
  private:
   bool loadCamToCamCalibration();
   bool loadVelToCamCalibration();
   bool loadImuToVelCalibration();
 
-  bool convertGpsToPose(const std::vector<double>& oxts, Transformation* pose);
   double latToScale(double lat) const;
   void latlonToMercator(double lat, double lon, double scale,
                         Eigen::Vector2d* mercator) const;
