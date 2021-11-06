@@ -123,7 +123,8 @@ class KittiLiveNode {
 
   bool checkAndCreateFile(std::string path, std::ofstream& file);
   void toTransform(double x, double y, double z, double roll, double pitch, double yaw, tf::Transform& transform);
-  void writeRawCalibFiles(float* S_02, tf::Matrix3x3 K_02, float* D_02, float* S_rect_02, tf::Matrix3x3 P_rect_02);
+  void writeRawCalibFiles(float* S_02, tf::Matrix3x3 K_02, float* D_02, float* S_rect_02, tf::Transform P_rect_02);
+  
   void writeDetectionCalibs(const std::string& detectionCalibPath, const tf::Transform& P2,
                                          const tf::Transform& P0, const tf::Transform& P1, const tf::Transform& P3);
   void writeOdometryCalib(const std::string& odometryCalibPath, const tf::Transform& P2,
@@ -387,10 +388,10 @@ void KittiLiveNode::writeOdometryCalib(const std::string& odometryCalibPath, con
                                        const tf::Transform& P3 = tf::Transform::getIdentity()){
   std::ofstream odometryCalibFile;
   odometryCalibFile.open(odometryCalibPath, std::ios::out);
-  odometryCalibFile << "P0: " << fmtTransToKittiCalib(P0);
-  odometryCalibFile << "P1: " << fmtTransToKittiCalib(P1);
   odometryCalibFile << "P2: " << fmtTransToKittiCalib(P2);
-  odometryCalibFile << "P3: " << fmtTransToKittiCalib(P3);
+  // odometryCalibFile << "P1: " << fmtTransToKittiCalib(P1);
+  // odometryCalibFile << "P2: " << fmtTransToKittiCalib(P2);
+  // odometryCalibFile << "P3: " << fmtTransToKittiCalib(P3);
   odometryCalibFile << "Tr: " << fmtTransToKittiCalib(velo2CamTrnasform_);
   odometryCalibFile.close();
 
@@ -403,10 +404,10 @@ void KittiLiveNode::writeDetectionCalibs(const std::string& detectionCalibPath, 
   tf::Matrix3x3 R0_rect = tf::Matrix3x3::getIdentity();
   detectionCalibFile.open(detectionCalibPath, std::ios::out);
 
-  detectionCalibFile << "P0: " << fmtTransToKittiCalib(P0);
-  detectionCalibFile << "P1: " << fmtTransToKittiCalib(P1);
   detectionCalibFile << "P2: " << fmtTransToKittiCalib(P2);
-  detectionCalibFile << "P3: " << fmtTransToKittiCalib(P3);
+  // detectionCalibFile << "P1: " << fmtTransToKittiCalib(P1);
+  // detectionCalibFile << "P2: " << fmtTransToKittiCalib(P2);
+  // detectionCalibFile << "P3: " << fmtTransToKittiCalib(P3);
   detectionCalibFile << "R0_rect: " << formatMatrix3x3(R0_rect);
   detectionCalibFile << "Tr_velo_to_cam: " << fmtTransToKittiCalib(velo2CamTrnasform_);
   detectionCalibFile << "Tr_imu_to_velo: " << fmtTransToKittiCalib(velo2ImuTrnasform_.inverse());
@@ -529,7 +530,7 @@ bool KittiLiveNode::sync_callback(const ImageConstPtr& image_msg,
   // velmode:       velocity mode of primary GPS receiver (see gps_mode_to_string)
   // orimode:       orientation mode of primary GPS receiver (see gps_mode_to_string)
   poseKittiFile.open(poseFrameEntry, std::ios::out);
-  double pos_accuracy, vel_accuracy, navstat, numsats, posmode, velmode, orimode = 0;
+  double pos_accuracy = 0, vel_accuracy = 0, navstat = 0, numsats = 0, posmode = 0, velmode = 0, orimode = 0;
   poseKittiFile << lat << " " << lon << " " << alt << " " << roll <<  " " << pitch <<  " " << yaw <<  " " \
                 << vn <<  " " << ve <<  " " << vf <<  " " << vl <<  " " << vu <<  " " << ax <<  " " << ay << " " \
                 << az <<  " " << af <<  " " << al <<  " " << au <<  " " << wx <<  " " << wy <<  " " << wz << " " \
@@ -563,12 +564,13 @@ bool KittiLiveNode::sync_callback(const ImageConstPtr& image_msg,
   }
 
   if(isRectified && !isCalibDone){
-    // Publish Raw/odom calib files only once!
-    float* S_rect_02 = new float[2]{(float) imageSizeRectified.width, (float) imageSizeRectified.height}; 
-    writeRawCalibFiles(S_02, toTFMat(cameraMatrix), D_02, S_rect_02, toTFMat(cameraMatrixRectified));
-
     tf::Transform P2 = tf::Transform(toTFMat(cameraMatrixRectified), tf::Vector3(0, 0, 0));
     cout << "P2: " << fmtTransToKittiCalib(P2) << endl;
+
+    // Publish Raw/odom calib files only once!
+    float* S_rect_02 = new float[2]{(float) imageSizeRectified.width, (float) imageSizeRectified.height}; 
+    writeRawCalibFiles(S_02, toTFMat(cameraMatrix), D_02, S_rect_02, P2);
+
     std::string odometryCalibPath = odometrySeqXFolder + "/" + "calib.txt";
     writeOdometryCalib(odometryCalibPath, P2);
     isCalibDone = true;
@@ -589,6 +591,12 @@ bool KittiLiveNode::sync_callback(const ImageConstPtr& image_msg,
   std::string detectionCalibPath = detectionCalibFolder + "/" + baseFileName + ".txt";
   writeDetectionCalibs(detectionCalibPath, P2);
 
+  // // Check longest sync gap
+  // image_msg->header.stamp;
+  // pc_msg->header.stamp;
+  // fix_msg->header.stamp;
+  // imu_msg->header.stamp
+  // std::sort
   current_entry_++;
   return true;
 
@@ -612,12 +620,13 @@ string KittiLiveNode::formatTimestamp(uint32_t timestamp_s, uint32_t timestamp_n
   seconds sec = seconds(timestamp_s); 
   system_clock::time_point tp{sec};
   time_t ts_time_t = system_clock::to_time_t(tp);
-  stringstream sst;
 
   char buffer[80];
-  strftime(buffer,sizeof(buffer),"%d-%m-%Y %H:%M:%S", localtime(&ts_time_t));
-  std::string timstamp_fmt(buffer);
-  return timstamp_fmt;
+  strftime(buffer,sizeof(buffer),"%Y-%m-%d %H:%M:%S", localtime(&ts_time_t));
+  
+  std::string ts_sec(buffer);
+  std::string ts_nsec = (boost::format(".%09u") % timestamp_ns).str();
+  return ts_sec + ts_nsec;
 }
 
 bool KittiLiveNode::checkAndCreateFile(std::string path, std::ofstream& file){
@@ -679,7 +688,7 @@ string KittiLiveNode::fmtTransToKittiCalib(tf::Transform transform)
  * @param T_02 3x1 translation vector of camera xx (extrinsic)
  * @param R_rect_02 3x3 rectifying rotation to make image planes co-planar
  */
-void KittiLiveNode::writeRawCalibFiles(float* S_02, tf::Matrix3x3 K_02, float* D_02, float* S_rect_02, tf::Matrix3x3 P_rect_02)
+void KittiLiveNode::writeRawCalibFiles(float* S_02, tf::Matrix3x3 K_02, float* D_02, float* S_rect_02, tf::Transform P_rect_02)
 { 
 
   tf::Matrix3x3 R_02 = tf::Matrix3x3::getIdentity();
@@ -707,7 +716,7 @@ void KittiLiveNode::writeRawCalibFiles(float* S_02, tf::Matrix3x3 K_02, float* D
   calib_cam_to_cam << "T_02: " << formatVector3(T_02) << endl;
   calib_cam_to_cam << s_rect_02 << endl;
   calib_cam_to_cam << "R_rect_02: " << formatMatrix3x3(R_rect_02) << endl;
-  calib_cam_to_cam << "P_rect_02: " << formatMatrix3x3(P_rect_02) << endl;
+  calib_cam_to_cam << "P_rect_02: " << fmtTransToKittiCalib(P_rect_02) << endl;
   calib_cam_to_cam.close();
 
   // // Write calib_cam_to_cam.txt --------------------------------------------------
